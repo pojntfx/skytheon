@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -29,6 +30,7 @@ type createSessionOutput struct {
 
 type feedItemInput struct {
 	Post struct {
+		URI    string `json:"uri"`
 		Record struct {
 			Type      string `json:"$type"`
 			Text      string `json:"text"`
@@ -37,27 +39,28 @@ type feedItemInput struct {
 				Parent any `json:"parent"`
 			} `json:"reply"`
 		} `json:"record"`
-		ReplyCount  int    `json:"replyCount"`
-		RepostCount int    `json:"repostCount"`
-		LikeCount   int    `json:"likeCount"`
-		Author      Author `json:"author"`
+		ReplyCount  int `json:"replyCount"`
+		RepostCount int `json:"repostCount"`
+		LikeCount   int `json:"likeCount"`
+		Author      struct {
+			Handle      string `json:"handle"`
+			DisplayName string `json:"displayName"`
+			Avatar      string `json:"avatar"`
+		} `json:"author"`
 	} `json:"post"`
 	Reason any `json:"reason"`
 }
 
 type FeedItem struct {
-	Text        string `json:"text"`
-	CreatedAt   string `json:"createdAt"`
-	ReplyCount  int    `json:"replyCount"`
-	RepostCount int    `json:"repostCount"`
-	LikeCount   int    `json:"likeCount"`
-	Author      Author `json:"author"`
-}
-
-type Author struct {
-	Handle      string `json:"handle"`
-	DisplayName string `json:"displayName"`
-	Avatar      string `json:"avatar"`
+	URI               string `json:"uri"`
+	Text              string `json:"text"`
+	CreatedAt         string `json:"createdAt"`
+	ReplyCount        int    `json:"replyCount"`
+	RepostCount       int    `json:"repostCount"`
+	LikeCount         int    `json:"likeCount"`
+	AuthorHandle      string `json:"authorHandle"`
+	AuthorDisplayName string `json:"authorDisplayName"`
+	AuthorAvatar      string `json:"authorAvatar"`
 }
 
 type Bluesky struct {
@@ -100,7 +103,7 @@ func (b *Bluesky) ResolveHandle(handle string) (string, error) {
 		return "", err
 	}
 
-	return r.DID, nil
+	return "at://" + r.DID, nil
 }
 
 func (b *Bluesky) GetAccessToken(did, appPassword string) (string, error) {
@@ -112,7 +115,7 @@ func (b *Bluesky) GetAccessToken(did, appPassword string) (string, error) {
 	u = u.JoinPath("xrpc", "com.atproto.server.createSession")
 
 	inputJson, err := json.Marshal(createSessionInput{
-		Identifier: did,
+		Identifier: strings.TrimPrefix(did, "at://"),
 		Password:   appPassword,
 	})
 	if err != nil {
@@ -157,7 +160,7 @@ func (b *Bluesky) GetPosts(accessToken, did string, limit int) ([]FeedItem, erro
 	u = u.JoinPath("xrpc", "app.bsky.feed.getAuthorFeed")
 
 	p := u.Query()
-	p.Add("actor", did)
+	p.Add("actor", strings.TrimPrefix(did, "at://"))
 	p.Add("limit", strconv.Itoa(limit))
 	u.RawQuery = p.Encode()
 
@@ -197,12 +200,15 @@ func (b *Bluesky) GetPosts(accessToken, did string, limit int) ([]FeedItem, erro
 			item.Reason == nil {
 
 			feedItems = append(feedItems, FeedItem{
-				Text:        item.Post.Record.Text,
-				CreatedAt:   item.Post.Record.CreatedAt,
-				ReplyCount:  item.Post.ReplyCount,
-				RepostCount: item.Post.RepostCount,
-				LikeCount:   item.Post.LikeCount,
-				Author:      item.Post.Author,
+				URI:               item.Post.URI,
+				Text:              item.Post.Record.Text,
+				CreatedAt:         item.Post.Record.CreatedAt,
+				ReplyCount:        item.Post.ReplyCount,
+				RepostCount:       item.Post.RepostCount,
+				LikeCount:         item.Post.LikeCount,
+				AuthorHandle:      item.Post.Author.Handle,
+				AuthorDisplayName: item.Post.Author.DisplayName,
+				AuthorAvatar:      item.Post.Author.Avatar,
 			})
 		}
 	}
