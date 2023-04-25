@@ -31,7 +31,7 @@ func main() {
 
 	b := backends.NewBluesky(*api)
 
-	token, err := b.GetAccessToken(*did, *appPassword)
+	token, err := b.GetAccessToken(*appPassword, *did)
 	if err != nil {
 		panic(err)
 	}

@@ -132,7 +132,7 @@ func (b *Bluesky) GetDID(handle string) (string, error) {
 	return idToURI(r.DID), nil
 }
 
-func (b *Bluesky) GetAccessToken(did, appPassword string) (string, error) {
+func (b *Bluesky) GetAccessToken(appPassword, did string) (string, error) {
 	u, err := url.Parse(b.url)
 	if err != nil {
 		return "", err
