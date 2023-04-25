@@ -97,7 +97,7 @@ func NewBluesky(url string) *Bluesky {
 	return &Bluesky{url}
 }
 
-func (b *Bluesky) ResolveHandle(handle string) (string, error) {
+func (b *Bluesky) GetDID(handle string) (string, error) {
 	u, err := url.Parse(b.url)
 	if err != nil {
 		return "", err

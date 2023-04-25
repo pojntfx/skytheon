@@ -15,7 +15,7 @@ func main() {
 
 	b := backends.NewBluesky(*api)
 
-	did, err := b.ResolveHandle(*handle)
+	did, err := b.GetDID(*handle)
 	if err != nil {
 		panic(err)
 	}
