@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -51,6 +52,23 @@ type feedItemInput struct {
 	Reason any `json:"reason"`
 }
 
+type createPostInput struct {
+	Collection string                 `json:"collection"`
+	Repo       string                 `json:"repo"`
+	Record     createPostInputContent `json:"record"`
+}
+
+type createPostInputContent struct {
+	Text      string `json:"text"`
+	CreatedAt string `json:"createdAt"`
+	Type      string `json:"$type"`
+}
+
+type createPostOutput struct {
+	URI string `json:"uri"`
+	CID string `json:"cid"`
+}
+
 type FeedItem struct {
 	URI               string `json:"uri"`
 	Text              string `json:"text"`
@@ -61,6 +79,14 @@ type FeedItem struct {
 	AuthorHandle      string `json:"authorHandle"`
 	AuthorDisplayName string `json:"authorDisplayName"`
 	AuthorAvatar      string `json:"authorAvatar"`
+}
+
+func idToURI(id string) string {
+	return "at://" + strings.TrimPrefix(id, "at://")
+}
+
+func uriToID(uri string) string {
+	return strings.TrimPrefix(uri, "at://")
 }
 
 type Bluesky struct {
@@ -103,7 +129,7 @@ func (b *Bluesky) ResolveHandle(handle string) (string, error) {
 		return "", err
 	}
 
-	return "at://" + r.DID, nil
+	return idToURI(r.DID), nil
 }
 
 func (b *Bluesky) GetAccessToken(did, appPassword string) (string, error) {
@@ -115,7 +141,7 @@ func (b *Bluesky) GetAccessToken(did, appPassword string) (string, error) {
 	u = u.JoinPath("xrpc", "com.atproto.server.createSession")
 
 	inputJson, err := json.Marshal(createSessionInput{
-		Identifier: strings.TrimPrefix(did, "at://"),
+		Identifier: uriToID(did),
 		Password:   appPassword,
 	})
 	if err != nil {
@@ -160,7 +186,7 @@ func (b *Bluesky) GetPosts(accessToken, did string, limit int) ([]FeedItem, erro
 	u = u.JoinPath("xrpc", "app.bsky.feed.getAuthorFeed")
 
 	p := u.Query()
-	p.Add("actor", strings.TrimPrefix(did, "at://"))
+	p.Add("actor", uriToID(did))
 	p.Add("limit", strconv.Itoa(limit))
 	u.RawQuery = p.Encode()
 
@@ -214,4 +240,57 @@ func (b *Bluesky) GetPosts(accessToken, did string, limit int) ([]FeedItem, erro
 	}
 
 	return feedItems, nil
+}
+
+func (b *Bluesky) CreatePost(accessToken, did, text string) (string, error) {
+	u, err := url.Parse(b.url)
+	if err != nil {
+		return "", err
+	}
+
+	u = u.JoinPath("xrpc", "com.atproto.repo.createRecord")
+
+	postRecord := createPostInput{
+		Collection: "app.bsky.feed.post",
+		Repo:       uriToID(did),
+		Record: createPostInputContent{
+			Text:      text,
+			CreatedAt: time.Now().Format(time.RFC3339),
+			Type:      "app.bsky.feed.post",
+		},
+	}
+
+	inputJson, err := json.Marshal(postRecord)
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(inputJson))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != 200 {
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			return "", err
+		}
+
+		return "", errors.New(string(body))
+	}
+
+	var output createPostOutput
+	if err := json.NewDecoder(res.Body).Decode(&output); err != nil {
+		return "", err
+	}
+
+	return output.URI, nil
 }
