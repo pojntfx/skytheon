@@ -48,6 +48,12 @@ type feedItemInput struct {
 			DisplayName string `json:"displayName"`
 			Avatar      string `json:"avatar"`
 		} `json:"author"`
+		Embed struct {
+			Images []struct {
+				Fullsize string `json:"fullsize"`
+				Alt      string `json:"alt"`
+			} `json:"images"`
+		} `json:"embed"`
 	} `json:"post"`
 	Reason any `json:"reason"`
 }
@@ -90,15 +96,21 @@ type Profile struct {
 }
 
 type FeedItem struct {
-	URI               string `json:"uri"`
-	Text              string `json:"text"`
-	CreatedAt         string `json:"createdAt"`
-	ReplyCount        int    `json:"replyCount"`
-	RepostCount       int    `json:"repostCount"`
-	LikeCount         int    `json:"likeCount"`
-	AuthorHandle      string `json:"authorHandle"`
-	AuthorDisplayName string `json:"authorDisplayName"`
-	AuthorAvatar      string `json:"authorAvatar"`
+	URI               string  `json:"uri"`
+	Text              string  `json:"text"`
+	CreatedAt         string  `json:"createdAt"`
+	ReplyCount        int     `json:"replyCount"`
+	RepostCount       int     `json:"repostCount"`
+	LikeCount         int     `json:"likeCount"`
+	AuthorHandle      string  `json:"authorHandle"`
+	AuthorDisplayName string  `json:"authorDisplayName"`
+	AuthorAvatar      string  `json:"authorAvatar"`
+	Images            []Image `json:"images"`
+}
+
+type Image struct {
+	URL     string `json:"url"`
+	AltText string `json:"altText"`
 }
 
 func idToURI(id string) string {
@@ -245,7 +257,15 @@ func (b *Bluesky) GetPosts(accessToken, did string, limit int) ([]FeedItem, erro
 			item.Post.Record.Reply.Parent == nil &&
 			item.Reason == nil {
 
-			feedItems = append(feedItems, FeedItem{
+			images := []Image{}
+			for _, image := range item.Post.Embed.Images {
+				images = append(images, Image{
+					URL:     image.Fullsize,
+					AltText: image.Alt,
+				})
+			}
+
+			item := FeedItem{
 				URI:               item.Post.URI,
 				Text:              item.Post.Record.Text,
 				CreatedAt:         item.Post.Record.CreatedAt,
@@ -255,7 +275,10 @@ func (b *Bluesky) GetPosts(accessToken, did string, limit int) ([]FeedItem, erro
 				AuthorHandle:      item.Post.Author.Handle,
 				AuthorDisplayName: item.Post.Author.DisplayName,
 				AuthorAvatar:      item.Post.Author.Avatar,
-			})
+				Images:            images,
+			}
+
+			feedItems = append(feedItems, item)
 		}
 	}
 
