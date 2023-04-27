@@ -69,6 +69,26 @@ type createPostOutput struct {
 	CID string `json:"cid"`
 }
 
+type getProfileInput struct {
+	Avatar         string `json:"avatar"`
+	FollowersCount int    `json:"followersCount"`
+	FollowsCount   int    `json:"followsCount"`
+	PostsCount     int    `json:"postsCount"`
+	Handle         string `json:"handle"`
+	DisplayName    string `json:"displayName"`
+	Description    string `json:"description"`
+}
+
+type Profile struct {
+	Avatar      string `json:"avatar"`
+	Followers   int    `json:"followers"`
+	Following   int    `json:"following"`
+	PostsCount  int    `json:"postsCount"`
+	Handle      string `json:"handle"`
+	DisplayName string `json:"displayName"`
+	Bio         string `json:"bio"`
+}
+
 type FeedItem struct {
 	URI               string `json:"uri"`
 	Text              string `json:"text"`
@@ -293,4 +313,53 @@ func (b *Bluesky) CreatePost(accessToken, did, text string) (string, error) {
 	}
 
 	return output.URI, nil
+}
+
+func (b *Bluesky) GetProfile(accessToken, did string) (Profile, error) {
+	u, err := url.Parse(b.url)
+	if err != nil {
+		return Profile{}, err
+	}
+
+	u = u.JoinPath("xrpc", "app.bsky.actor.getProfile")
+
+	p := u.Query()
+	p.Add("actor", uriToID(did))
+	u.RawQuery = p.Encode()
+
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return Profile{}, err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return Profile{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != 200 {
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			return Profile{}, err
+		}
+
+		return Profile{}, errors.New(string(body))
+	}
+
+	var r getProfileInput
+	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
+		return Profile{}, err
+	}
+
+	return Profile{
+		Avatar:      r.Avatar,
+		Followers:   r.FollowersCount,
+		Following:   r.FollowsCount,
+		PostsCount:  r.PostsCount,
+		Handle:      r.Handle,
+		DisplayName: r.DisplayName,
+		Bio:         r.Description,
+	}, nil
 }
